@@ -136,7 +136,7 @@
 
   <script>
     const CONFIG = {
-      CLIENT_ID: '18534',
+      CLIENT_ID: '18535',
       REDIRECT_URI: 'https://makarpivnuska-oss.github.io/callback',
       SCOPES: 'oauth-user-show oauth-donation-index oauth-donation-subscribe',
     };
@@ -194,7 +194,9 @@
         statusEl.textContent = 'Подключено ✓';
         statusEl.className = 'value online';
         userInfoEl.textContent = 'Пользователь: ' + userName;
-        connectBtn.style.display = 'none';
+        connectBtn.textContent = 'Отключить';
+        connectBtn.onclick = logout;
+        connectBtn.style.display = 'inline-block';
         statsEl.style.display = 'flex';
       });
 
@@ -251,47 +253,36 @@
     }
 
     // ── Init ─────────────────────────────────────────────────────
-    async function init() {
-      var token = getTokenFromHash();
-      if (!token) {
-        log('Нажмите "Подключить" для авторизации');
-        return;
-      }
-
+    // Подключение по токену
+    async function connectWithToken(token) {
       accessToken = token;
-      history.replaceState(null, '', window.location.pathname);
 
       statusEl.textContent = 'Подключение...';
       statusEl.className = 'value connecting';
       connectBtn.style.display = 'none';
-      log('Токен получен');
+      log('Подключение к DonationAlerts...');
 
       try {
-        // Получаем профиль — subscribeEndpoint поддерживает CORS!
-        var res = await fetch('https://www.donationalerts.com/api/v1/centrifuge/subscribe', {
-          method: 'POST',
-          headers: {
-            'Authorization': 'Bearer ' + token,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ channels: ['$alerts:donation_0'], client: 'test' })
-        });
-
-        // Если subscribe endpoint работает — значит CORS OK
-        // Теперь получаем профиль через user/oauth
-        log('CORS OK! Получаю профиль...');
-
         var profileRes = await fetch('https://www.donationalerts.com/api/v1/user/oauth', {
           headers: { 'Authorization': 'Bearer ' + token }
         });
 
-        if (!profileRes.ok) throw new Error('Profile: ' + profileRes.status);
+        if (!profileRes.ok) {
+          // Токен протух — удаляем и просим заново
+          localStorage.removeItem('da_token');
+          throw new Error('Токен истёк, авторизуйтесь заново');
+        }
+
         var profileData = await profileRes.json();
         var profile = profileData.data;
 
+        // Сохраняем токен и данные
+        localStorage.setItem('da_token', token);
+        localStorage.setItem('da_user_name', profile.name);
+        localStorage.setItem('da_user_id', profile.id);
+
         log('Пользователь: ' + profile.name + ' (id: ' + profile.id + ')');
 
-        // Подключаем Centrifugo
         connectWebSocket(profile.socket_connection_token, profile.id, profile.name);
 
       } catch (e) {
@@ -299,7 +290,36 @@
         statusEl.textContent = 'Ошибка подключения';
         statusEl.className = 'value offline';
         connectBtn.style.display = 'inline-block';
+        connectBtn.textContent = 'Подключить заново';
       }
+    }
+
+    // Выход
+    function logout() {
+      localStorage.removeItem('da_token');
+      localStorage.removeItem('da_user_name');
+      localStorage.removeItem('da_user_id');
+      window.location.reload();
+    }
+
+    async function init() {
+      // 1. Проверяем hash (после OAuth редиректа)
+      var token = getTokenFromHash();
+      if (token) {
+        history.replaceState(null, '', window.location.pathname);
+        log('Новый токен получен через OAuth');
+        return connectWithToken(token);
+      }
+
+      // 2. Проверяем сохранённый токен
+      var savedToken = localStorage.getItem('da_token');
+      if (savedToken) {
+        log('Восстановление сессии...');
+        return connectWithToken(savedToken);
+      }
+
+      // 3. Нет токена — показываем кнопку
+      log('Нажмите "Подключить" для авторизации');
     }
 
     init();

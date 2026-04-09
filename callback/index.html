@@ -3,50 +3,101 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Токен получен</title>
+  <title>DonationAlerts Callback</title>
   <style>
-    body { background: #0f0f23; color: #e0e0e0; font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
-    .box { background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 12px; padding: 30px; max-width: 500px; width: 100%; text-align: center; }
-    h2 { color: #4caf50; margin-bottom: 16px; }
-    .token-box { background: #0a2a0a; border: 1px solid #4caf50; border-radius: 8px; padding: 12px; word-break: break-all; font-family: monospace; font-size: 13px; color: #4caf50; cursor: pointer; margin-bottom: 16px; }
-    p { color: #888; font-size: 14px; line-height: 1.5; }
-    .error { color: #f44336; }
+    body {
+      background: #0f0f23;
+      color: #e0e0e0;
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+    }
+    .box {
+      background: #1a1a2e;
+      border: 1px solid #2a2a4a;
+      border-radius: 12px;
+      padding: 30px;
+      max-width: 560px;
+      width: 100%;
+      text-align: center;
+    }
+    h2 {
+      color: #4caf50;
+      margin-bottom: 16px;
+    }
+    .value-box {
+      background: #0a2a0a;
+      border: 1px solid #4caf50;
+      border-radius: 8px;
+      padding: 12px;
+      word-break: break-all;
+      font-family: monospace;
+      font-size: 13px;
+      color: #4caf50;
+      cursor: pointer;
+      margin-bottom: 16px;
+    }
+    p {
+      color: #888;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .error {
+      color: #f44336;
+    }
   </style>
 </head>
 <body>
   <div class="box">
-    <h2 id="title">Получение токена...</h2>
-    <div class="token-box" id="token-box" onclick="copyToken()">...</div>
+    <h2 id="title">Обработка callback...</h2>
+    <div class="value-box" id="value-box" onclick="copyValue()">...</div>
     <p id="msg"></p>
   </div>
   <script>
-    const hash = window.location.hash.substring(1);
-    const params = new URLSearchParams(hash);
-    const token = params.get('access_token');
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const queryParams = new URLSearchParams(window.location.search);
+
+    const token = hashParams.get('access_token');
+    const code = queryParams.get('code');
+    const value = token || code || '';
+
+    const title = document.getElementById('title');
+    const valueBox = document.getElementById('value-box');
+    const msg = document.getElementById('msg');
 
     if (token) {
-      document.getElementById('title').textContent = 'Токен получен!';
-      document.getElementById('token-box').textContent = token;
-      document.getElementById('msg').textContent = 'Нажмите на токен чтобы скопировать. Отправьте его разработчику.';
+      title.textContent = 'Токен получен';
+      valueBox.textContent = token;
+      msg.textContent = 'Нажмите на токен, чтобы скопировать его. Его можно вставить в бота вручную.';
+    } else if (code) {
+      title.textContent = 'Код авторизации получен';
+      valueBox.textContent = code;
+      msg.textContent = 'Нажмите на code, чтобы скопировать его. Этот code можно отправить в админку бота для автоматического обмена на токен.';
     } else {
-      document.getElementById('title').textContent = 'Ошибка';
-      document.getElementById('title').className = 'error';
-      document.getElementById('token-box').textContent = 'Токен не получен';
-      document.getElementById('msg').textContent = 'Попробуйте авторизоваться заново.';
+      title.textContent = 'Ошибка';
+      title.className = 'error';
+      valueBox.textContent = 'access_token или code не найдены';
+      valueBox.style.borderColor = '#f44336';
+      valueBox.style.color = '#f44336';
+      valueBox.style.background = '#2a0a0a';
+      msg.textContent = 'Попробуйте авторизоваться заново.';
     }
 
-    function copyToken() {
-      if (!token) return;
-      navigator.clipboard.writeText(token).then(() => {
-        document.getElementById('msg').textContent = 'Скопировано!';
+    function copyValue() {
+      if (!value) return;
+      navigator.clipboard.writeText(value).then(() => {
+        msg.textContent = 'Скопировано!';
       }).catch(() => {
-        const el = document.getElementById('token-box');
         const range = document.createRange();
-        range.selectNodeContents(el);
+        range.selectNodeContents(valueBox);
         window.getSelection().removeAllRanges();
         window.getSelection().addRange(range);
         document.execCommand('copy');
-        document.getElementById('msg').textContent = 'Скопировано!';
+        msg.textContent = 'Скопировано!';
       });
     }
   </script>
