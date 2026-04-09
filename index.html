@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DonationAlerts — Донаты</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/centrifuge/4.0.1/centrifuge.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f0f23;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+    h1 { color: #f95a2c; margin-bottom: 8px; font-size: 28px; }
+    .subtitle { color: #888; margin-bottom: 30px; font-size: 14px; }
+
+    .status-card {
+      background: #1a1a2e;
+      border: 1px solid #2a2a4a;
+      border-radius: 12px;
+      padding: 24px 32px;
+      text-align: center;
+      margin-bottom: 30px;
+      min-width: 360px;
+    }
+    .status-card .label { color: #888; font-size: 13px; margin-bottom: 6px; }
+    .status-card .value { font-size: 18px; font-weight: 600; }
+    .online { color: #4caf50; }
+    .offline { color: #f44336; }
+    .connecting { color: #ff9800; }
+
+    .auth-section {
+      background: #1a1a2e;
+      border: 1px solid #2a2a4a;
+      border-radius: 12px;
+      padding: 24px 32px;
+      margin-bottom: 30px;
+      max-width: 500px;
+      width: 100%;
+    }
+    .auth-section h3 { color: #ccc; margin-bottom: 12px; font-size: 16px; }
+    .auth-section p { color: #888; font-size: 13px; margin-bottom: 16px; line-height: 1.5; }
+    .auth-section a { color: #f95a2c; }
+
+    .btn {
+      display: inline-block;
+      background: #f95a2c;
+      color: #fff;
+      padding: 12px 32px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 16px;
+      cursor: pointer;
+      border: none;
+      transition: background .2s;
+    }
+    .btn:hover { background: #e04a1c; }
+    .btn:disabled { background: #555; cursor: not-allowed; }
+
+    .btn-secondary {
+      background: #2a2a4a;
+      color: #ccc;
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+      transition: background .2s;
+    }
+    .btn-secondary:hover { background: #3a3a5a; }
+
+    .tabs { display: flex; gap: 0; margin-bottom: 16px; }
+    .tab {
+      padding: 10px 20px;
+      background: #2a2a4a;
+      color: #888;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all .2s;
+    }
+    .tab:first-child { border-radius: 8px 0 0 8px; }
+    .tab:last-child { border-radius: 0 8px 8px 0; }
+    .tab.active { background: #f95a2c; color: #fff; }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    input[type="text"], input[type="number"] {
+      width: 100%;
+      padding: 10px 14px;
+      background: #0f0f23;
+      border: 1px solid #2a2a4a;
+      border-radius: 8px;
+      color: #e0e0e0;
+      font-size: 14px;
+      margin-bottom: 12px;
+      outline: none;
+    }
+    input:focus { border-color: #f95a2c; }
+
+    .donations {
+      width: 100%;
+      max-width: 600px;
+    }
+    .donations h2 {
+      color: #ccc;
+      font-size: 18px;
+      margin-bottom: 14px;
+      border-bottom: 1px solid #2a2a4a;
+      padding-bottom: 8px;
+    }
+    .donation-item {
+      background: #1a1a2e;
+      border: 1px solid #2a2a4a;
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin-bottom: 10px;
+      animation: slideIn 0.3s ease;
+    }
+    .donation-item .top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .donation-item .username { font-weight: 600; color: #f95a2c; }
+    .donation-item .amount { font-weight: 700; color: #4caf50; font-size: 18px; }
+    .donation-item .message { color: #aaa; font-size: 14px; }
+    .empty { color: #555; text-align: center; padding: 40px 0; }
+    .log { color: #555; font-size: 12px; margin-top: 30px; max-width: 600px; word-break: break-all; }
+    .log div { margin-bottom: 4px; }
+
+    .stats {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    .stat-box {
+      background: #1a1a2e;
+      border: 1px solid #2a2a4a;
+      border-radius: 10px;
+      padding: 16px 24px;
+      text-align: center;
+      flex: 1;
+    }
+    .stat-box .stat-value { font-size: 24px; font-weight: 700; color: #4caf50; }
+    .stat-box .stat-label { font-size: 12px; color: #888; margin-top: 4px; }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <h1>DonationAlerts</h1>
+  <p class="subtitle">Приём донатов в реальном времени</p>
+
+  <div class="status-card">
+    <div class="label">Статус</div>
+    <div class="value" id="status">Не подключено</div>
+    <div class="label" style="margin-top:10px" id="user-info"></div>
+  </div>
+
+  <!-- Секция авторизации -->
+  <div class="auth-section" id="auth-section">
+    <h3>Подключение</h3>
+
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('oauth')">OAuth (кнопка)</button>
+      <button class="tab" onclick="switchTab('token')">Токен (вручную)</button>
+    </div>
+
+    <!-- Вкладка OAuth -->
+    <div class="tab-content active" id="tab-oauth">
+      <p>Нажмите кнопку и авторизуйтесь через DonationAlerts:</p>
+      <button class="btn" onclick="startAuth()">Подключить DonationAlerts</button>
+    </div>
+
+    <!-- Вкладка ручного токена -->
+    <div class="tab-content" id="tab-token">
+      <p>
+        Введите данные из
+        <a href="https://www.donationalerts.com/dashboard/general-settings/api" target="_blank">настроек API DonationAlerts</a>:
+      </p>
+      <input type="text" id="manual-token" placeholder="API Token (из настроек DA)">
+      <input type="number" id="manual-user-id" placeholder="User ID (число)">
+      <input type="text" id="manual-socket-token" placeholder="Socket Connection Token">
+      <p style="color:#666; font-size:12px;">
+        Socket Connection Token можно получить, вызвав API: GET /api/v1/user/oauth с вашим токеном.
+        Или используйте OAuth-авторизацию (первая вкладка).
+      </p>
+      <button class="btn" onclick="connectManual()">Подключить</button>
+    </div>
+  </div>
+
+  <!-- Статистика -->
+  <div class="stats" id="stats" style="display:none; max-width:600px; width:100%;">
+    <div class="stat-box">
+      <div class="stat-value" id="total-count">0</div>
+      <div class="stat-label">Донатов</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-value" id="total-sum">0</div>
+      <div class="stat-label">Сумма (RUB)</div>
+    </div>
+  </div>
+
+  <div class="donations">
+    <h2>Донаты в реальном времени</h2>
+    <div id="donation-list">
+      <div class="empty">Подключитесь и ждите донатов...</div>
+    </div>
+  </div>
+
+  <div class="log" id="log"></div>
+
+  <script>
+    // ══════════════════════════════════════════════════════════════
+    const CONFIG = {
+      CLIENT_ID: '18534',
+      REDIRECT_URI: 'https://makarpivnuska-oss.github.io/callback',
+      SCOPES: 'oauth-user-show oauth-donation-index oauth-donation-subscribe',
+    };
+    // ══════════════════════════════════════════════════════════════
+
+    const statusEl     = document.getElementById('status');
+    const userInfoEl   = document.getElementById('user-info');
+    const authSection  = document.getElementById('auth-section');
+    const donationList = document.getElementById('donation-list');
+    const logEl        = document.getElementById('log');
+    const statsEl      = document.getElementById('stats');
+    let hasDonations   = false;
+    let totalCount     = 0;
+    let totalSum       = 0;
+
+    function log(msg) {
+      console.log(msg);
+      const d = document.createElement('div');
+      d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      logEl.prepend(d);
+    }
+
+    // ── Tabs ──────────────────────────────────────────────────────
+    function switchTab(name) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById('tab-' + name).classList.add('active');
+    }
+
+    // ── OAuth ────────────────────────────────────────────────────
+    function startAuth() {
+      const url =
+        `https://www.donationalerts.com/oauth/authorize` +
+        `?client_id=${CONFIG.CLIENT_ID}` +
+        `&redirect_uri=${encodeURIComponent(CONFIG.REDIRECT_URI)}` +
+        `&response_type=token` +
+        `&scope=${encodeURIComponent(CONFIG.SCOPES)}`;
+      window.location.href = url;
+    }
+
+    function getTokenFromHash() {
+      const hash = window.location.hash.substring(1);
+      if (!hash) return null;
+      const params = new URLSearchParams(hash);
+      return params.get('access_token');
+    }
+
+    // ── API (с обработкой CORS) ─────────────────────────────────
+    async function fetchProfile(token) {
+      const res = await fetch('https://www.donationalerts.com/api/v1/user/oauth', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`Profile: ${res.status}`);
+      const data = await res.json();
+      return data.data;
+    }
+
+    async function fetchDonationHistory(token) {
+      try {
+        const res = await fetch('https://www.donationalerts.com/api/v1/alerts/donations', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return [];
+        const data = await res.json();
+        return data.data || [];
+      } catch (e) {
+        log('История недоступна (CORS): ' + e.message);
+        return [];
+      }
+    }
+
+    // ── Centrifugo ──────────────────────────────────────────────
+    function connectCentrifugo(socketToken, userId, userName) {
+      if (!socketToken) {
+        log('Нет socket_connection_token — реалтайм недоступен');
+        statusEl.textContent = 'Нет WebSocket токена';
+        statusEl.className = 'value offline';
+        return;
+      }
+
+      const centrifuge = new Centrifuge(
+        'wss://centrifugo.donationalerts.com/connection/websocket',
+        { token: socketToken }
+      );
+
+      centrifuge.on('connected', () => {
+        log('WebSocket подключён');
+        statusEl.textContent = 'Подключено ✓';
+        statusEl.className = 'value online';
+        userInfoEl.textContent = userName ? `Пользователь: ${userName}` : `User ID: ${userId}`;
+        authSection.style.display = 'none';
+        statsEl.style.display = 'flex';
+      });
+
+      centrifuge.on('disconnected', (ctx) => {
+        log('WebSocket отключён: ' + ctx.reason);
+        statusEl.textContent = 'Отключено';
+        statusEl.className = 'value offline';
+      });
+
+      centrifuge.on('error', (ctx) => {
+        log('WebSocket ошибка: ' + JSON.stringify(ctx));
+      });
+
+      const channel = `$alerts:donation_${userId}`;
+      const sub = centrifuge.newSubscription(channel, {
+        token: socketToken,
+      });
+
+      sub.on('publication', (ctx) => {
+        const d = ctx.data;
+        log(`${d.username || 'Аноним'}: ${d.amount} ${d.currency}`);
+        addDonation(d);
+      });
+
+      sub.on('subscribing', () => log('Подключаюсь к каналу донатов...'));
+      sub.on('subscribed', () => log('Подписан на донаты!'));
+      sub.on('error', (ctx) => log('Ошибка подписки: ' + JSON.stringify(ctx)));
+
+      sub.subscribe();
+      centrifuge.connect();
+    }
+
+    // ── Manual connect ──────────────────────────────────────────
+    function connectManual() {
+      const socketToken = document.getElementById('manual-socket-token').value.trim();
+      const userId = document.getElementById('manual-user-id').value.trim();
+
+      if (!socketToken || !userId) {
+        alert('Введите User ID и Socket Connection Token');
+        return;
+      }
+
+      statusEl.textContent = 'Подключение...';
+      statusEl.className = 'value connecting';
+      log('Подключение с ручным токеном...');
+
+      connectCentrifugo(socketToken, userId, null);
+    }
+
+    // ── UI ────────────────────────────────────────────────────────
+    function addDonation(d) {
+      if (!hasDonations) {
+        donationList.innerHTML = '';
+        hasDonations = true;
+      }
+
+      totalCount++;
+      const amount = parseFloat(d.amount) || 0;
+      const currency = d.currency || 'RUB';
+      if (currency === 'RUB') totalSum += amount;
+
+      document.getElementById('total-count').textContent = totalCount;
+      document.getElementById('total-sum').textContent = totalSum.toLocaleString('ru-RU');
+
+      const div = document.createElement('div');
+      div.className = 'donation-item';
+      div.innerHTML = `
+        <div class="top">
+          <span class="username">${escapeHtml(d.username || 'Аноним')}</span>
+          <span class="amount">${d.amount} ${d.currency}</span>
+        </div>
+        <div class="message">${escapeHtml(d.message || '—')}</div>
+      `;
+      donationList.prepend(div);
+
+      // Звук уведомления
+      try {
+        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ==');
+        audio.volume = 0.3;
+        audio.play().catch(() => {});
+      } catch(e) {}
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // ── Init ─────────────────────────────────────────────────────
+    async function init() {
+      const token = getTokenFromHash();
+      if (!token) {
+        log('Выберите способ подключения');
+        return;
+      }
+
+      // Убираем токен из URL
+      history.replaceState(null, '', window.location.pathname);
+
+      statusEl.textContent = 'Подключение...';
+      statusEl.className = 'value connecting';
+      log('Токен получен через OAuth');
+
+      try {
+        const profile = await fetchProfile(token);
+        log(`Пользователь: ${profile.name} (id: ${profile.id})`);
+
+        // Загружаем историю (может не работать из-за CORS)
+        const hist = await fetchDonationHistory(token);
+        hist.forEach(addDonation);
+        if (hist.length) log(`Загружено ${hist.length} донатов из истории`);
+
+        // Подключаем реалтайм
+        connectCentrifugo(profile.socket_connection_token, profile.id, profile.name);
+
+      } catch (e) {
+        // CORS заблокировал — показываем токен для копирования
+        log('API заблокирован браузером (CORS)');
+        statusEl.textContent = 'Скопируйте токен ниже';
+        statusEl.className = 'value connecting';
+
+        // Показываем токен
+        authSection.innerHTML = `
+          <h3>Токен получен! Скопируйте его:</h3>
+          <input type="text" id="token-display" value="${token}" readonly
+                 onclick="this.select(); document.execCommand('copy'); alert('Скопировано!')"
+                 style="cursor:pointer; background:#0a2a0a; border-color:#4caf50; color:#4caf50; font-family:monospace; font-size:12px;">
+          <p style="color:#888; font-size:13px; margin-top:8px;">
+            Нажмите на поле чтобы скопировать токен.<br>
+            Отправьте его разработчику — он настроит подключение.
+          </p>
+        `;
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
