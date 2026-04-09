@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DonationAlerts — Донаты</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/centrifuge/4.0.1/centrifuge.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/centrifuge/2.8.5/centrifuge.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -169,47 +169,36 @@
       return div.innerHTML;
     }
 
-    // Подключение к Centrifugo WebSocket
+    // Подключение к Centrifugo WebSocket (v2 API)
     function connect() {
       log('Подключение к WebSocket...');
 
-      const centrifuge = new Centrifuge(
-        'wss://centrifugo.donationalerts.com/connection/websocket',
-        { token: SOCKET_TOKEN }
-      );
+      const centrifuge = new Centrifuge('wss://centrifugo.donationalerts.com/connection/websocket');
+      centrifuge.setToken(SOCKET_TOKEN);
 
-      centrifuge.on('connected', () => {
+      centrifuge.on('connect', function(ctx) {
         log('WebSocket подключён!');
         statusEl.textContent = 'Подключено ✓';
         statusEl.className = 'value online';
       });
 
-      centrifuge.on('disconnected', (ctx) => {
+      centrifuge.on('disconnect', function(ctx) {
         log('WebSocket отключён: ' + ctx.reason);
         statusEl.textContent = 'Отключено — переподключение...';
         statusEl.className = 'value offline';
       });
 
-      centrifuge.on('error', (ctx) => {
+      centrifuge.on('error', function(ctx) {
         log('Ошибка: ' + JSON.stringify(ctx));
       });
 
-      const channel = `$alerts:donation_${USER_ID}`;
-      const sub = centrifuge.newSubscription(channel, {
-        token: SOCKET_TOKEN,
-      });
-
-      sub.on('publication', (ctx) => {
-        const d = ctx.data;
-        log(`Донат: ${d.username || 'Аноним'} — ${d.amount} ${d.currency}`);
+      const channel = '$alerts:donation_' + USER_ID;
+      centrifuge.subscribe(channel, function(msg) {
+        const d = msg.data;
+        log('Донат: ' + (d.username || 'Аноним') + ' — ' + d.amount + ' ' + d.currency);
         addDonation(d);
       });
 
-      sub.on('subscribing', () => log('Подключение к каналу донатов...'));
-      sub.on('subscribed', () => log('Подписан на донаты! Ожидание...'));
-      sub.on('error', (ctx) => log('Ошибка подписки: ' + JSON.stringify(ctx)));
-
-      sub.subscribe();
       centrifuge.connect();
     }
 
